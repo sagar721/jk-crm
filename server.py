@@ -2196,7 +2196,15 @@ class CRMHandler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def do_OPTIONS(self):
+        origin = self.headers.get("Origin", "")
+        allowed = os.environ.get("FRONTEND_URL", "https://jk-crm.vercel.app")
         self.send_response(204)
+        if origin == allowed or allowed == "*":
+            self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Workspace-Id, Idempotency-Key")
+        self.send_header("Access-Control-Allow-Credentials", "true")
+        self.send_header("Access-Control-Max-Age", "86400")
         self.end_headers()
 
     def do_GET(self):
@@ -2670,9 +2678,14 @@ class CRMHandler(BaseHTTPRequestHandler):
 
     def send_json(self, payload, status=200):
         data = json.dumps(payload).encode("utf-8")
+        origin = self.headers.get("Origin", "")
+        allowed = os.environ.get("FRONTEND_URL", "https://jk-crm.vercel.app")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        if origin == allowed or allowed == "*":
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         try:
             from middleware import apply_security_headers, cache_idempotency
             apply_security_headers(self)
@@ -2759,7 +2772,10 @@ try:
     _wsgi_thread.start()
     time.sleep(0.5)  # Give internal server time to bind before first request
 
+    from flask_cors import CORS as _CORS
     app = _Flask(__name__)
+    _FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://jk-crm.vercel.app")
+    _CORS(app, resources={r"/*": {"origins": [_FRONTEND_URL]}}, supports_credentials=True)
 
     @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
