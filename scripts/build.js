@@ -25,7 +25,9 @@ fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 
 execFileSync(process.execPath, ["--check", path.join(root, "app.js")], { stdio: "inherit" });
-execFileSync("python3", ["-m", "py_compile", path.join(root, "server.py")], { stdio: "inherit" });
+if (!process.env.VERCEL) {
+  execFileSync("python3", ["-m", "py_compile", path.join(root, "server.py")], { stdio: "inherit" });
+}
 
 for (const file of files) {
   if (file === "app.js") {
