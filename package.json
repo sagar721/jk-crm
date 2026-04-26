@@ -1,0 +1,13 @@
+{
+  "name": "jk-fluid-controls-crm",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local CRM for JK Fluid Controls with SQLite, email, WhatsApp, automation, and AI integrations.",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "check": "node --check app.js && node --check supabase/examples/crm-client.mjs && python3 -m py_compile server.py",
+    "start": "python3 server.py"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

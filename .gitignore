@@ -1,0 +1,5 @@
+crm.sqlite3
+.env
+__pycache__/
+dist/
+node_modules/
