@@ -2777,9 +2777,20 @@ try:
     _FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://jk-crm.vercel.app")
     _CORS(app, resources={r"/*": {"origins": [_FRONTEND_URL]}}, supports_credentials=True)
 
+    @app.route("/")
+    def home():
+        return "Backend Running"
+
+    @app.route("/health")
+    def health():
+        return {"status": "ok"}
+
     @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     def _proxy(path):
+        if path == "health":
+             return health()
+        sys.stdout.write(f"[proxy] Forwarding {request.method} /{path}\n")
         target = f"http://127.0.0.1:{_INTERNAL_PORT}/{path}"
         if _request.query_string:
             target += "?" + _request.query_string.decode("utf-8")
