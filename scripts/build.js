@@ -27,7 +27,16 @@ fs.mkdirSync(dist, { recursive: true });
 execFileSync(process.execPath, ["--check", path.join(root, "app.js")], { stdio: "inherit" });
 execFileSync("python3", ["-m", "py_compile", path.join(root, "server.py")], { stdio: "inherit" });
 
-for (const file of files) copyFile(file);
+for (const file of files) {
+  if (file === "app.js") {
+    let content = fs.readFileSync(path.join(root, file), "utf8");
+    const apiUrl = process.env.VITE_API_BASE_URL || "http://127.0.0.1:8765";
+    content = content.replace("VITE_API_BASE_URL", apiUrl);
+    fs.writeFileSync(path.join(dist, file), content);
+  } else {
+    copyFile(file);
+  }
+}
 copyDir(path.join(root, "assets"), path.join(dist, "assets"));
 
 const meta = {

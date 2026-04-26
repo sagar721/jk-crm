@@ -2698,12 +2698,19 @@ class CRMHandler(BaseHTTPRequestHandler):
 
     def serve_static(self):
         root = static_root()
-        request_path = self.route_path().lstrip("/") or "index.html"
+        path = self.route_path()
+        request_path = path.lstrip("/") or "index.html"
         target = (root / request_path).resolve()
+        
+        # Log the static file request for debugging
+        app_log("Static request", path=path, target=str(target), exists=target.exists())
+
         if root not in target.parents and target != root:
+            app_log("Forbidden static access", path=path, target=str(target))
             self.send_error(403)
             return
         if not target.exists() or target.is_dir():
+            app_log("SPA fallback to index.html", path=path)
             target = root / "index.html"
         content_type = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
         data = target.read_bytes()
@@ -2753,7 +2760,7 @@ if __name__ == "__main__":
 # This avoids rewriting 2700+ lines of custom routing logic.
 
 try:
-    from flask import Flask as _Flask, request as _request, Response as _Response
+    from flask import Flask as _Flask, request as _request, Response as _Response, jsonify as _jsonify
     import urllib.request as _ureq
     import urllib.error as _uerr
 
@@ -2777,8 +2784,8 @@ try:
     _FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://jk-crm.vercel.app")
     _CORS(app, resources={r"/*": {"origins": [_FRONTEND_URL]}}, supports_credentials=True)
 
-    @app.route("/")
-    def home():
+    @app.route("/api/ping")
+    def ping():
         return "Backend Running"
 
     @app.route("/health")
@@ -2787,12 +2794,12 @@ try:
 
     @app.route("/debug/routes")
     def list_routes():
-        return jsonify([str(r) for r in app.url_map.iter_rules()])
+        return _jsonify([str(r) for r in app.url_map.iter_rules()])
 
     @app.errorhandler(404)
     def not_found(e):
-        sys.stderr.write(f"[404] Route not found: {request.method} {request.path}\n")
-        return jsonify({"error": "route not found", "path": request.path}), 404
+        sys.stderr.write(f"[404] Route not found: {_request.method} {_request.path}\n")
+        return _jsonify({"error": "route not found", "path": _request.path}), 404
 
     @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
@@ -2815,17 +2822,23 @@ try:
 
         try:
             with _ureq.urlopen(req) as res:
-                sys.stdout.write(f"[API] {request.method} /{path} → {res.status}\n")
+                content = res.read()
+                # If internal server returned index.html fallback for an /api/ route, it's a 404
+                if path.startswith("api/") and res.status == 200 and b"<!doctype html>" in content[:200].lower():
+                     sys.stderr.write(f"[404] API route not found in internal server: {_request.method} /{path}\n")
+                     return _jsonify({"error": "route not found", "path": _request.path}), 404
+
+                sys.stdout.write(f"[API] {_request.method} /{path} → {res.status}\n")
                 excluded = {"transfer-encoding", "connection"}
                 resp_headers = [(k, v) for k, v in res.headers.items() if k.lower() not in excluded]
-                return _Response(res.read(), status=res.status, headers=resp_headers)
+                return _Response(content, status=res.status, headers=resp_headers)
         except _uerr.HTTPError as e:
-            sys.stdout.write(f"[API] {request.method} /{path} → {e.code}\n")
+            sys.stdout.write(f"[API] {_request.method} /{path} → {e.code}\n")
             excluded = {"transfer-encoding", "connection"}
             resp_headers = [(k, v) for k, v in e.headers.items() if k.lower() not in excluded]
             return _Response(e.read(), status=e.code, headers=resp_headers)
         except Exception as e:
-            sys.stderr.write(f"[API] {request.method} /{path} → ERROR: {e}\n")
+            sys.stderr.write(f"[API] {_request.method} /{path} → ERROR: {e}\n")
             return _Response(f"Gateway error: {e}".encode(), status=502)
 
     # Expose as 'application' so Gunicorn finds it via: gunicorn server:application

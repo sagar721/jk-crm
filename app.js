@@ -1,8 +1,6 @@
 const STORAGE_KEY = "jkfc-crm-state-v1";
 const AUTH_STORAGE_KEY = "jkfc-crm-auth-v1";
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE_URL) 
-  ? import.meta.env.VITE_API_BASE_URL 
-  : (() => { throw new Error("VITE_API_BASE_URL is required but not found. Please set it in your environment."); })();
+const API_BASE = "VITE_API_BASE_URL"; // Injected by build script
 const DEFAULT_PAGE_SIZE = 50;
 const COLLECTION_KEYS = ["users", "companies", "contacts", "stages", "inquiries", "products", "pipeline", "quotations", "quoteItems", "orders", "activities", "messages", "emails", "automations", "automationLog", "audit"];
 const PAGE_COLLECTIONS = {
