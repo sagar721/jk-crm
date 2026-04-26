@@ -2785,12 +2785,21 @@ try:
     def health():
         return {"status": "ok"}
 
+    @app.route("/debug/routes")
+    def list_routes():
+        return jsonify([str(r) for r in app.url_map.iter_rules()])
+
+    @app.errorhandler(404)
+    def not_found(e):
+        sys.stderr.write(f"[404] Route not found: {request.method} {request.path}\n")
+        return jsonify({"error": "route not found", "path": request.path}), 404
+
     @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
     def _proxy(path):
         if path == "health":
              return health()
-        sys.stdout.write(f"[proxy] Forwarding {request.method} /{path}\n")
+        
         target = f"http://127.0.0.1:{_INTERNAL_PORT}/{path}"
         if _request.query_string:
             target += "?" + _request.query_string.decode("utf-8")
@@ -2806,14 +2815,17 @@ try:
 
         try:
             with _ureq.urlopen(req) as res:
+                sys.stdout.write(f"[API] {request.method} /{path} → {res.status}\n")
                 excluded = {"transfer-encoding", "connection"}
                 resp_headers = [(k, v) for k, v in res.headers.items() if k.lower() not in excluded]
                 return _Response(res.read(), status=res.status, headers=resp_headers)
         except _uerr.HTTPError as e:
+            sys.stdout.write(f"[API] {request.method} /{path} → {e.code}\n")
             excluded = {"transfer-encoding", "connection"}
             resp_headers = [(k, v) for k, v in e.headers.items() if k.lower() not in excluded]
             return _Response(e.read(), status=e.code, headers=resp_headers)
         except Exception as e:
+            sys.stderr.write(f"[API] {request.method} /{path} → ERROR: {e}\n")
             return _Response(f"Gateway error: {e}".encode(), status=502)
 
     # Expose as 'application' so Gunicorn finds it via: gunicorn server:application
