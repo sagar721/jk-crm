@@ -437,29 +437,76 @@ async function refreshAccessToken() {
   return refreshPromise;
 }
 
-async function apiRequest(path, options = {}, retry = true) {
+async function apiRequest(path, options = {}, retryCount = 3) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+  
   const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
   if (authState.accessToken) headers.Authorization = `Bearer ${authState.accessToken}`;
   if (authState.workspaceId) headers["X-Workspace-Id"] = authState.workspaceId;
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (response.status === 401 && retry && authState.refreshToken && !path.startsWith("/api/auth/")) {
-    try {
-      await refreshAccessToken();
-      return apiRequest(path, options, false);
-    } catch {
-      clearAuthState();
-      state = normalizeState({ ...state, session: null, activePage: "dashboard" });
-      writeLocalState();
-      render();
-      throw new Error("Session expired");
+
+  // Global loading indicator toggle
+  const loader = document.getElementById("global-api-loader");
+  if (loader) loader.style.display = "block";
+
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    // Handle Render Cold Start / Gateway Errors (502, 503, 504)
+    if ([502, 503, 504].includes(response.status) && retryCount > 0) {
+      console.warn(`[API] Retrying ${path} due to status ${response.status}. Retries left: ${retryCount - 1}`);
+      await new Promise(r => setTimeout(r, 2000)); // Wait 2s before retry
+      return apiRequest(path, options, retryCount - 1);
     }
+
+    const payload = await response.json().catch(() => ({}));
+
+    // Handle Unauthorized (Token Refresh)
+    if (response.status === 401 && retryCount > 0 && authState.refreshToken && !path.startsWith("/api/auth/")) {
+      try {
+        await refreshAccessToken();
+        return apiRequest(path, options, false);
+      } catch {
+        clearAuthState();
+        state = normalizeState({ ...state, session: null, activePage: "dashboard" });
+        writeLocalState();
+        render();
+        throw new Error("Session expired");
+      }
+    }
+
+    if (response.status >= 400) {
+      throw new Error(payload.error || `Request failed: ${response.status}`);
+    }
+
+    return payload;
+  } catch (err) {
+    if (err.name === "AbortError") throw new Error("Request timed out after 30s");
+    throw err;
+  } finally {
+    if (loader) loader.style.display = "none";
   }
-  if (!response.ok) throw new Error(payload.error || `Request failed: ${response.status}`);
-  return payload;
+}
+
+async function loadRemoteState() {
+  if (!state.session) return;
+  try {
+    const response = await apiRequest("/api/state");
+    if (response.state) {
+      state = normalizeState({ ...response.state, session: state.session, activePage: state.activePage });
+      writeLocalState();
+      backendStatus = { ...backendStatus, database: "connected", connected: true };
+      render();
+    }
+  } catch (error) {
+    backendStatus = { ...backendStatus, database: "offline", connected: false };
+    render();
+  }
 }
 
 function scheduleRemoteSave() {
