@@ -3,3 +3,4 @@ flask-cors
 psycopg[binary]
 gunicorn
 python-dotenv
+psycopg_pool
