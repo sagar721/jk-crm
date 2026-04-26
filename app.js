@@ -1,8 +1,8 @@
 const STORAGE_KEY = "jkfc-crm-state-v1";
 const AUTH_STORAGE_KEY = "jkfc-crm-auth-v1";
-const API_BASE = window.location.hostname.includes("vercel.app") 
-  ? "https://jk-crm-backend.onrender.com" 
-  : (window.location.protocol === "file:" ? "http://127.0.0.1:8765" : "");
+const API_BASE = (typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_API_BASE_URL)
+  || (window.location.hostname.includes("vercel.app") ? "https://jk-crm-backend.onrender.com" : "")
+  || (window.location.protocol === "file:" ? "http://127.0.0.1:8765" : "");
 const DEFAULT_PAGE_SIZE = 50;
 const COLLECTION_KEYS = ["users", "companies", "contacts", "stages", "inquiries", "products", "pipeline", "quotations", "quoteItems", "orders", "activities", "messages", "emails", "automations", "automationLog", "audit"];
 const PAGE_COLLECTIONS = {
