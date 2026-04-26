@@ -2269,7 +2269,7 @@ class CRMHandler(BaseHTTPRequestHandler):
                 }
             )
             return
-        if path in ("/activities", "/api/activities"):
+        if path == "/api/activities":
             user = self.require_auth()
             if not user:
                 return
@@ -2378,13 +2378,13 @@ class CRMHandler(BaseHTTPRequestHandler):
         if path == "/api/automation/run":
             self.handle_automation_run()
             return
-        if path in ("/generate-message", "/api/generate-message"):
+        if path == "/api/generate-message":
             self.handle_generate_message()
             return
-        if path in ("/send-email", "/api/send-email"):
+        if path == "/api/send-email":
             self.handle_send_email_v2()
             return
-        if path in ("/send-whatsapp", "/api/send-whatsapp"):
+        if path == "/api/send-whatsapp":
             self.handle_send_whatsapp_v2()
             return
         self.send_json({"error": "Not found"}, status=404)

@@ -1671,7 +1671,7 @@ async function generateCommunicationMessage() {
   setCommunicationBusy(true);
   setCommunicationStatus("Generating...");
   try {
-    const response = await apiRequest("/generate-message", {
+    const response = await apiRequest("/api/generate-message", {
       method: "POST",
       body: JSON.stringify({
         leadId: data.leadId || selectedLeadId(),
@@ -1697,7 +1697,7 @@ async function sendCommunicationEmail() {
   setCommunicationBusy(true);
   setCommunicationStatus("Sending email...");
   try {
-    const response = await apiRequest("/send-email", {
+    const response = await apiRequest("/api/send-email", {
       method: "POST",
       body: JSON.stringify({
         leadId: data.leadId || selectedLeadId(),
@@ -1721,7 +1721,7 @@ async function sendCommunicationWhatsApp() {
   setCommunicationBusy(true);
   setCommunicationStatus("Sending WhatsApp...");
   try {
-    const response = await apiRequest("/send-whatsapp", {
+    const response = await apiRequest("/api/send-whatsapp", {
       method: "POST",
       body: JSON.stringify({
         leadId: data.leadId || selectedLeadId(),
