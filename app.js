@@ -485,6 +485,10 @@ async function apiRequest(path, options = {}, retryCount = 3) {
     return payload;
   } catch (err) {
     if (err.name === "AbortError") throw new Error("Request timed out after 30s");
+    const msg = err.message || String(err);
+    if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
+      throw new Error(`API Unreachable (${API_BASE}). Check your internet and backend status.`);
+    }
     throw err;
   } finally {
     if (loader) loader.style.display = "none";
