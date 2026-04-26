@@ -2730,3 +2730,68 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── Gunicorn WSGI Entry Point ─────────────────────────────────────────────────
+# Usage: gunicorn server:application --workers 1 --threads 4 --bind 0.0.0.0:$PORT
+#
+# Starts the existing CRMHandler on an internal port in a background thread,
+# then proxies all Gunicorn traffic through a Flask catch-all route.
+# This avoids rewriting 2700+ lines of custom routing logic.
+
+try:
+    from flask import Flask as _Flask, request as _request, Response as _Response
+    import urllib.request as _ureq
+    import urllib.error as _uerr
+
+    _INTERNAL_PORT = int(os.environ.get("INTERNAL_PORT", "8766"))
+
+    def _start_internal_server():
+        load_env()
+        try:
+            init_db()
+        except Exception as _e:
+            sys.stderr.write(f"[wsgi] DB init failed: {_e}\n")
+        _srv = ThreadingHTTPServer(("127.0.0.1", _INTERNAL_PORT), CRMHandler)
+        _srv.serve_forever()
+
+    _wsgi_thread = threading.Thread(target=_start_internal_server, daemon=True)
+    _wsgi_thread.start()
+    time.sleep(0.5)  # Give internal server time to bind before first request
+
+    app = _Flask(__name__)
+
+    @app.route("/", defaults={"path": ""}, methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
+    @app.route("/<path:path>", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"])
+    def _proxy(path):
+        target = f"http://127.0.0.1:{_INTERNAL_PORT}/{path}"
+        if _request.query_string:
+            target += "?" + _request.query_string.decode("utf-8")
+
+        # Forward all headers from the original request
+        headers = {
+            k: v for k, v in _request.headers
+            if k.lower() not in ("host", "content-length")
+        }
+
+        body = _request.get_data() or None
+        req = _ureq.Request(target, data=body, headers=headers, method=_request.method)
+
+        try:
+            with _ureq.urlopen(req) as res:
+                excluded = {"transfer-encoding", "connection"}
+                resp_headers = [(k, v) for k, v in res.headers.items() if k.lower() not in excluded]
+                return _Response(res.read(), status=res.status, headers=resp_headers)
+        except _uerr.HTTPError as e:
+            excluded = {"transfer-encoding", "connection"}
+            resp_headers = [(k, v) for k, v in e.headers.items() if k.lower() not in excluded]
+            return _Response(e.read(), status=e.code, headers=resp_headers)
+        except Exception as e:
+            return _Response(f"Gateway error: {e}".encode(), status=502)
+
+    # Expose as 'application' so Gunicorn finds it via: gunicorn server:application
+    application = app
+
+except ImportError:
+    # Flask not installed — Gunicorn won't work, but python server.py still will
+    application = None
